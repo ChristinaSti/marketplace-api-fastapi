@@ -1,4 +1,4 @@
-# HOWTO: uv
+# uv
 
 ## initial setup
 ``` bash
@@ -10,6 +10,8 @@ uv python pin 3.14
 uv add fastapi uvicorn 
 # add dependencies for development only
 uv add pytest --dev
+# start the app:
+uv run uvicorn app.main:app --reload
 ```
 
 # what to add to .gitignore and what not:
