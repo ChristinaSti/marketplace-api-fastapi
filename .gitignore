@@ -1,5 +1,4 @@
 # Python
-.pytest_cache/
 __pycache__/
 
 # IDE
@@ -7,3 +6,11 @@ __pycache__/
 
 # Environments
 .venv
+
+# pytest(-cov)
+.pytest_cache/
+coverage.*
+.coverage
+
+# ruff
+.ruff_cache/

@@ -7,3 +7,6 @@ Demo project.
 - git remote repository: **GitHub Repository**
 - issue tracking and project management: **Github Projects**
 - git branching strategy: **trunk-based deployment**
+- linting and formatting: **ruff**
+- testing: **pytest**
+- CI/CD: **GitHub Actions**

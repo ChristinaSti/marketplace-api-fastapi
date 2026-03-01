@@ -1,9 +1,14 @@
 # git
 
-## Branching strategy
-- trunk-based development
-    - One long-lived branch: main
-    - Optional short-lived feature branches (≤ 1 day)
+## Branching strategy: trunk-based development
+- One long-lived branch: main
+- Optional short-lived feature branches (≤ 1 day)
+- **core idea**: integration of small focussed changes happens frequently, keeping the codebase in a consistently releasable state, little divergence
+- Two ways of integrating changes:
+    1) pushing changes directly to main:
+        - safety net shifts from "code review gates before merge" to other mechanisms: solid automated test suites that run fast, feature flags to hide unfinished work, strong team norms around commit size and quality, and pair programming or code review happening before the push rather than via a PR
+    2) short-lived feature branches + PR
+        - preserves a review step without the painful merge conflicts of longer-lived branches
 
 ## Getting started
 1. create github repository (for codebase storage and version control) and an associated project (for task management)
