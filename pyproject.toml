@@ -11,5 +11,26 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
+    "mypy>=1.19.1",
     "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.4",
 ]
+
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # Pyflakes (default)
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade (modernize syntax, e.g. use f-strings instead of .format())
+    "FAST", # FastAPI
+    "ASYNC",
+    "PL", # Pylint
+    "N", # pep8-naming
+]
+
+[tool.pytest]
+addopts = ["--cov=./app", "--cov-report=term-missing", "--cov-report=xml"]
