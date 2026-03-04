@@ -5,7 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "alembic>=1.18.4",
     "fastapi>=0.133.1",
+    "psycopg>=3.3.3",
+    "pydantic-settings>=2.13.1",
+    "sqlalchemy>=2.0.48",
     "uvicorn>=0.41.0",
 ]
 
@@ -31,6 +35,10 @@ select = [
     "PL", # Pylint
     "N", # pep8-naming
 ]
+exclude = ["alembic/versions/*.py"]
+
+[tool.ruff.format]
+exclude = ["alembic/**"]
 
 [tool.pytest]
 addopts = ["--cov=./app", "--cov-report=term-missing", "--cov-report=xml"]

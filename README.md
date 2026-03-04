@@ -10,3 +10,8 @@ Demo project.
 - linting and formatting: **ruff**
 - testing: **pytest**
 - CI/CD: **GitHub Actions**
+- Relational Database Management System: **PostgreSQL**
+- Object-relational mapping (**ORM**)
+- Python SQL toolkit and object-relational mapper: **SQLAlchemy**
+- Versioned database schema migration: **Alembic**
+- App configuration loading and validation: **pydantic**
