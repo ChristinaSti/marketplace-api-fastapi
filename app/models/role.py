@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Identity, SmallInteger, String, UniqueConstraint
+from sqlalchemy import Identity, SmallInteger, String, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
@@ -14,26 +15,18 @@ class Role(Base):
 
     __tablename__ = "roles"
 
-    id = Column(
+    id: Mapped[int] = mapped_column(
         SmallInteger,
-        Identity(always=True),
-        # auto-incrementing, always=True prevents manual inserts
-        # nullable=False is not needed as it's implied by primary_key=True
+        Identity(always=True),  # auto-incrementing, always=True prevents manual inserts
+        nullable=False,  # also implied by primary_key=True
         primary_key=True,
         doc="Auto-incrementing role identifier",
     )
-    name = Column(
+
+    name: Mapped[str] = mapped_column(
         String(100),
         nullable=False,
         doc="Unique role name (e.g., 'seller', 'customer')",
     )
 
     __table_args__ = (UniqueConstraint("name", name="uk_roles_name"),)
-
-    def __repr__(self) -> str:
-        """String representation of Role instance. Useful for debugging and logging.
-
-        Returns:
-            str: Role representation showing id and name.
-        """
-        return f"<Role(id={self.id}, name='{self.name}')>"
