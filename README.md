@@ -12,6 +12,6 @@ Demo project.
 - CI/CD: **GitHub Actions**
 - Relational Database Management System: **PostgreSQL**
 - Object-relational mapping (**ORM**)
-- Python SQL toolkit and object-relational mapper: **SQLAlchemy**
+- Python SQL toolkit and object-relational mapper: **SQLAlchemy2.0**
 - Versioned database schema migration: **Alembic**
 - App configuration loading and validation: **pydantic**
