@@ -1,7 +1,12 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import Identity, SmallInteger, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from .user_role import UserRole
 
 
 class Role(Base):
@@ -28,5 +33,7 @@ class Role(Base):
         nullable=False,
         doc="Unique role name (e.g., 'seller', 'customer')",
     )
+
+    user_roles: Mapped[list["UserRole"]] = relationship(back_populates="role")
 
     __table_args__ = (UniqueConstraint("name", name="uk_roles_name"),)
