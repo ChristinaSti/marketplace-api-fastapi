@@ -1,13 +1,15 @@
-from typing import TYPE_CHECKING
 import uuid
-from sqlalchemy import UUID, CheckConstraint, DateTime, Index, String, func, Enum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.database import Base
 from enum import StrEnum
+from typing import TYPE_CHECKING
+
+from sqlalchemy import UUID, CheckConstraint, DateTime, Index, String, func
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
 
 if TYPE_CHECKING:
-    from .user_role import UserRole
     from .order import Order
+    from .user_role import UserRole
 
 
 class UserStatus(StrEnum):

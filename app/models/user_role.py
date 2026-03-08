@@ -1,9 +1,10 @@
+import uuid
 from typing import TYPE_CHECKING
 
-from app.database import Base
-import uuid
-from sqlalchemy import UUID, ForeignKey, Index, SmallInteger
+from sqlalchemy import UUID, ForeignKey, SmallInteger
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
 
 if TYPE_CHECKING:
     # from .user import User
