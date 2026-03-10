@@ -1,0 +1,31 @@
+# version control
+.git/
+.github/
+.gitignore
+
+# docker
+Dockerfile
+.dockerignore
+
+# environment / secrets
+.env
+.env.example
+.python-version
+.venv/
+
+# caches
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# testing
+tests/
+.coverage
+coverage.xml
+
+# documentation / notes
+_notes/
+docs/
+README.md
+
