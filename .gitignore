@@ -16,3 +16,7 @@ coverage.*
 
 # ruff
 .ruff_cache/
+
+# Terraform
+.terraform/
+!.terraform.lock.hcl

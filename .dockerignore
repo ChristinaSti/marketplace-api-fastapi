@@ -24,6 +24,9 @@ tests/
 .coverage
 coverage.xml
 
+# infrastructure
+terraform/
+
 # documentation / notes
 _notes/
 docs/
