@@ -17,3 +17,4 @@ Demo project.
 - App configuration loading and validation: **pydantic**
 - Containerization: **Docker** (**multi-stage build**)
 - Web Server: **Uvicorn** (may be combined with Gunicorn for multi-processing/vertical scaling within each Cloud Run instance in case of consistent high CPU load rather than high I/O load)
+- Infrastructure as Code: **Terraform**
