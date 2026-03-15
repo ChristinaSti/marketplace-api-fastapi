@@ -35,3 +35,8 @@ variable "labels" {
     team        = "backend"
   }
 }
+
+variable "github_repo" {
+  description = "GitHub repository (owner/repo) allowed to authenticate via WIF."
+  type        = string
+}
