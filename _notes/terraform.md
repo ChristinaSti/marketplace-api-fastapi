@@ -86,7 +86,84 @@ sudo apt update && sudo apt install terraform
         - `default` value in the `variable` block
         - If none of the above, Terraform prompts us interactively
 
-### GCP project
+#### GCP project
 - "this" as a local resource name is a widely-used convention when there's only one instance of that resource type in the module (comes from the self idea in OOP)
 - labels can be useful for: cost contribution (e.g. filter billing reports by team, environment, service), automation (scripts/policies that target resources by label, e.g., "delete all environment=dev resources nightly"), organization: quickly identify who owns what in the console
 - project_id: should be recognizable for easier debugging, logs and GCP console where it is shown, must be globally unique in GCP
+- since the project is created in this config, there is not default project specified in `provider "google" {}`
+
+#### APIs
+``` yaml
+"cloudresourcemanager.googleapis.com", # project metadata an resources
+"iam.googleapis.com",                  # IAM policies and service accounts
+"iamcredentials.googleapis.com",       # Workload Identity Federation
+"sts.googleapis.com",                  # Security Token Service (WIF)
+"storage.googleapis.com",              # GCS (Terraform state bucket)
+"artifactregistry.googleapis.com",     # Docker image registry
+"run.googleapis.com",                  # Cloud Run
+"compute.googleapis.com",              # networking (Cloud Run dependency)
+"secretmanager.googleapis.com",        # Secret Manager
+"sqladmin.googleapis.com",             # Cloud SQL
+"servicenetworking.googleapis.com",    # enables private connections between VPC GCP-services (e.g. Cloud SQL private IP)
+"vpcaccess.googleapis.com"             # creates VPC connectors for serverless services Cloud Run can reach private VPC resources
+```
+
+#### State
+- the bootstrap state is intentionally local to be run ONCE by a human with org-admin permissions, not by CD pipeline should have very limited permissions => no remote storage location => no backend configuration in terraform block
+- the bootstrap/state.tf file defines the storage bucket where the the `terraform.tfstate` of the terraform root is saved that the CD pipeline is supposed to run
+##### Syntax
+- `versioning {enabled = true}`: GCS retains every version of every object rather than overwriting on PUT
+    - -> protects from accidental deletion and structural corruption (e.g. `terraform apply` crashes mid-write or `terraform state rm` runs by mistake)
+- `lifecycle_rule {}`: avoid unbounded storage costs vor a big number of state versions
+- `lifecycle{prevent_destroy = true}`: 
+    - is a Terraform meta-argument, not sent to GCP API (despite "lifecycle" naming overlap)
+    - any `destroy` of this resource is rejected with an error at plan time, before apply
+- `uniform_bucket_level_access = true`
+    - GCS has two IAM models:
+        - Bucket-level IAM: standard GCP IAM policies on the bucket resource
+        - Object-level ACLs: legacy per-object Access Control Lists
+    - uniform_bucket_level_access disables object ACLs entirely => a single, auditable, IAM-native access model, no accidental permissive access control on an object
+- `public_access_prevention = "enforced"`
+    - operates below the IAM layer, is a safety net in case of IAM misconfiguration
+    - if someone grants `allUsers` or `allAuthenticatedUsers` read access (anyone with a google account), GCP refuses to serve unauthenticated requests to this bucket
+- `autoclass {enabled = true}`: automatically transitions objects between storage classes based on access frequency
+    - Standard: frequently accessed, Nearline (~ monthly), Coldline (~ quarterly), Archive (rarely)
+        -> cheaper storage cost from left to right but also higher retrieval cost
+- `depends_on = [google_project_service.apis]` 
+    -  explicit dependency is needed when ordering cannot be inferred from attribute references (here attr. of google_project_service.apis)
+
+#### Outputs
+- output exports values/created resources from a module/state so they can be read by `terraform output` command, other terraform modules via `module.<name>.<output>`, CI scripts as deployment metadata
+
+#### IAM (Identity and Access management)
+- service account:
+    -  intended to represent a non-human user, such as an application, virtual machine (VM), or automated workload
+    - allows these services to authenticate and securely call Google API methods without requiring human credentials, using IAM roles to define specific permissions for accessing resources
+``` yaml
+"roles/run.admin",                    # deploy Cloud Run services & jobs
+"roles/iam.serviceAccountUser",       # act as the Cloud Run runtime SA
+"roles/artifactregistry.writer",      # push Docker images
+"roles/secretmanager.secretAccessor", # read database secrets
+"roles/cloudsql.client",              # connect to Cloud SQL
+"roles/storage.objectAdmin",          # read/write Terraform state
+```
+
+#### WIF (workload identity federation)
+- `google_iam_workload_identity_pool`: 
+    - creates a trust container in GCP, like a namespace that tells GCP what identities to trust from an external system
+    only accepts identity tokens from external identity providers that are registered inside this pool
+    - it does nothing by itself, it is just the pool that providers and bindings are associated to
+- `google_iam_workload_identity_pool_provider`:
+    - here is where actual trust relationship is defined: what external identity provider to trust, how to interpret its tokens, conditions under which to accept them => if the JWT token is accepted, it returns a **federated access token** - a short-lived OAuth2 token
+    - `issuer_uri = "https://token.actions.githubusercontent.com"`: GitHub's JWKS (JSON Web Key Set) endpoint URL where GCP fetches GitHub's public key from that is used to verify the signature of every JWT that comes in claiming to be from GitHub
+    - `attribute_mapping`: 
+        - GitHub's signed JWT contains a claims payload with fields like sub, repository, ref
+        - attribute_mapping block translates GitHub's JWT claim names into GCP's attribute system
+    - `attribute_condition`: 
+        - every incoming JWT is evaluated against this condition after signature verification -> if it evaluates to false, GCP's STS returns a 403, no token is issued
+            - => only workflows triggered from the main branch of my specific repository in a push event are accepted.
+- `google_service_account_iam_member`:
+    - the github action then calls iamcredentials.googleapis.com to impersonate the specified service account, exchanging the federated token for a service-account-scoped token which can then be used by the CD pipeline to authenticate for subsequent gcloud/GCP SDK calls
+    - `role = "roles/iam.workloadIdentityUser"`: ability to call generateAccessToken on the IAM Credentials API to **impersonate a service account**
+    - `member = "principalSet://iam.googleapis.com/${pool.name}/attribute.repository/${var.github_repo}"`: 
+        - principalSet: not a single identity but a set of identities defined by an attribute - any external identity that came through this pool AND whose `attribute.repository` matches your-org/your-repo

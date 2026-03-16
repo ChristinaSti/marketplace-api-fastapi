@@ -7,15 +7,14 @@ resource "google_service_account" "cd" {
   depends_on = [google_project_service.apis]
 }
 
-# Least-privilege IAM roles for the CD service account
 locals {
   cd_roles = [
-    "roles/run.admin",                   # deploy Cloud Run services & jobs
-    "roles/iam.serviceAccountUser",      # act as the Cloud Run runtime SA
-    "roles/artifactregistry.writer",     # push Docker images
-    "roles/secretmanager.secretAccessor", # read database secrets
-    "roles/cloudsql.client",             # connect to Cloud SQL
-    "roles/storage.objectAdmin",         # read/write Terraform state
+    "roles/run.admin",
+    "roles/iam.serviceAccountUser", 
+    "roles/artifactregistry.writer",
+    "roles/secretmanager.secretAccessor",
+    "roles/cloudsql.client",
+    "roles/storage.objectAdmin",
   ]
 }
 
