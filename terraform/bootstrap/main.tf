@@ -8,6 +8,7 @@
 #   - Terraform remote-state bucket
 #   - Workload Identity Federation (keyless GitHub Actions → GCP auth)
 #   - CD service account with least-privilege IAM roles
+#   - GitHub Actions secrets (WIF_PROVIDER, WIF_SERVICE_ACCOUNT)
 #
 # Usage:
 #   cd terraform/bootstrap
@@ -19,9 +20,10 @@
 # machine. The local state file (terraform.tfstate) should NOT be committed —
 # it is already in .gitignore.
 #
-# Prerequisites on YOUR Google account:
-#   - roles/resourcemanager.projectCreator  (on the org)
-#   - roles/billing.user                    (on the billing account)
+# Prerequisites on YOUR machine:
+#   - Google account with:
+#     - roles/resourcemanager.projectCreator  (on the org)
+#     - roles/billing.user                    (on the billing account)
 # =============================================================================
 
 terraform {
@@ -32,26 +34,34 @@ terraform {
       source  = "hashicorp/google"
       version = "~> 7.18.0"
     }
+    github = {
+      source  = "integrations/github"
+      version = "~> 6.0"
+    }
   }
-  # no backend block configuration - bootstrap state is intentionally local 
-  # to be run ONCE by a human with org-admin permissions
 }
 
-provider "google" {
-  # No default project - it is created
+provider "google" {}
+
+provider "github" {
+  owner = local.github_owner
+  token = var.github_token
 }
 
 locals {
   apis = [
-    "cloudresourcemanager.googleapis.com", # project metadata an resources
-    "iam.googleapis.com",                  # IAM policies and service accounts
-    "iamcredentials.googleapis.com",       # Workload Identity Federation
-    "sts.googleapis.com",                  # Security Token Service (WIF)
-    "storage.googleapis.com",              # GCS (Terraform state bucket)
-    "artifactregistry.googleapis.com",     # Docker image registry
-    "run.googleapis.com",                  # Cloud Run
-    "compute.googleapis.com",              # networking (Cloud Run dependency)
-    "secretmanager.googleapis.com",        # Secret Manager
+    "cloudresourcemanager.googleapis.com",
+    "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
+    "storage.googleapis.com",
+    "artifactregistry.googleapis.com",
+    "run.googleapis.com",
+    "compute.googleapis.com",
+    "secretmanager.googleapis.com",
+    "sqladmin.googleapis.com",
+    "servicenetworking.googleapis.com",
+    "vpcaccess.googleapis.com"
   ]
 }
 

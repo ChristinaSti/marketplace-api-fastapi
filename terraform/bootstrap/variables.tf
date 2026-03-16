@@ -40,3 +40,9 @@ variable "github_repo" {
   description = "GitHub repository (owner/repo) allowed to authenticate via WIF."
   type        = string
 }
+
+variable "github_token" {
+  description = "GitHub token for setting GitHub secrets."
+  type        = string
+  sensitive   = true
+}

@@ -8,16 +8,7 @@ resource "google_storage_bucket" "tf_state" {
   versioning {
     enabled = true
   }
-
-  # Prevent accidental deletion for compliance: locks objects for a period
-  retention_policy {
-      retention_period = 604800  # in seconds = 1 day (minimum) 
-  }
-
-  uniform_bucket_level_access = true
-  public_access_prevention    = "enforced"
-
-  # Keep only the 5 most recent state versions
+  
   lifecycle_rule {
     condition {
       num_newer_versions = 5
@@ -31,14 +22,12 @@ resource "google_storage_bucket" "tf_state" {
     prevent_destroy = true
   }
 
-  # STANDARD: lowest latency, highest cost. 
-  # For data accessed ~1x/month, use "NEARLINE" for cost savings
-  storage_class = "STANDARD"  
-  
-  # Automatically transition to cheaper storage classes over time  if state changes infrequently
+  uniform_bucket_level_access = true
+  public_access_prevention    = "enforced"
+
   autoclass {
     enabled = true
-  } 
+  }
 
   depends_on = [google_project_service.apis]
 }
