@@ -8,6 +8,10 @@ jobs:
   deploy:
     runs-on: ubuntu-22.04
 
+    env:
+      TERRAFORM_WD: terraform/pipeline
+      SERVICE_NAME: "marketplace-api"
+
     permissions:
       contents: read
       id-token: write
@@ -20,5 +24,47 @@ jobs:
         id: auth
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
-          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~> 1.14.0"
+      
+      - name: Cache Terraform providers
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.TERRAFORM_WD }}/.terraform/providers
+          key: tf-providers-${{ format('{0}/.terraform.lock.hcl', env.TERRAFORM_WD) }}  
+  
+      - name: Terraform Init
+        working-directory: ${{ env.TERRAFORM_WD }}
+        run: terraform init -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+
+      - name: Terraform Plan
+        working-directory: ${{ env.TERRAFORM_WD }}
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ${{ env.TERRAFORM_WD }}
+        run: terraform apply -var-file=../common.tfvars -var-file=pipeline.tfvars -auto-approve tfplan
+      - name: Set image tag
+        id: image
+        run: |
+          echo "base=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/marketplace/${{ env.SERVICE_NAME }}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate Docker to Artifact Registry
+        run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          docker build \
+            -t "${{ steps.image.outputs.base }}:${{ github.sha }}" \
+            -t "${{ steps.image.outputs.base }}:latest" \
+            .
+          docker push "${{ steps.image.outputs.base }}:${{ github.sha }}"
+          docker push "${{ steps.image.outputs.base }}:latest"

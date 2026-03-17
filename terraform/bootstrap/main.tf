@@ -13,10 +13,10 @@
 # Usage:
 #   cd terraform/bootstrap
 #   terraform init
-#   terraform apply
+#   terraform apply -var-file=../common.tfvars -var-file=bootstrap.tfvars
 #
 # State is kept LOCAL on purpose — this config is run once and rarely touched.
-# If you need to re-run it (e.g. to add an API), just re-apply from your
+# If you need to re-run it (e.g. to add an API), re-apply from your
 # machine. The local state file (terraform.tfstate) should NOT be committed —
 # it is already in .gitignore.
 #
@@ -38,6 +38,16 @@ terraform {
       source  = "integrations/github"
       version = "~> 6.0"
     }
+  }
+  
+  # The backend code was added after the state was created in a first bootstrap terraform run
+  # in order to centrally save the bootstrap state.
+  # Since this block is executed during terraform init, it cannot access 
+  # google_project.tf_state.name => bucket must be hardcoded
+  # For first-time run add the flag: terraform init -migrate-state
+  backend "gcs" {
+    bucket = "marketplace-api-prod-tf-state"
+    prefix = "bootstrap"
   }
 }
 
@@ -61,7 +71,8 @@ locals {
     "secretmanager.googleapis.com",
     "sqladmin.googleapis.com",
     "servicenetworking.googleapis.com",
-    "vpcaccess.googleapis.com"
+    "vpcaccess.googleapis.com",
+    "containerscanning.googleapis.com"
   ]
 }
 

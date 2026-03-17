@@ -44,7 +44,7 @@ sudo apt update && sudo apt install terraform
         - Patch: Backward-compatible bug fixes and stability improvements.
     - Note: the pessimistic operator allows only the rightmost digit of our version string to increment => if we omit the patch number completely like `"~> 1.14"` nay minor version equal or greater that will be allowed, not patch
 
-## bootstrap
+## bootstrap Terraform
 - in the end, github actions in CD pipeline are supposed to automatically run terraform
     - -> some reasons why this is a good practice even if the infrastructure changes rarely: 
         - preventing configurational drift: e.g. if someone tweaks a setting via cloud console, `terraform plan` can alert or `terraform apply` can revert it => keeping a clear version-controlled history of infra changes
@@ -75,7 +75,7 @@ sudo apt update && sudo apt install terraform
 - Steps:
     - `cd terraform/bootstrap`
     - `terraform init`
-    - `terraform apply`
+    - `terraform apply`, or in the end `terraform apply -var-file=../common.tfvars -var-file=bootstrap.tfvars`
 - How does terraform resolve variables using var.<name>?
     - looks for the `variable` blocks across all .tf files in the same directory
         - -> e.g. var.project_id resolves to variable "project_id" block
@@ -134,6 +134,7 @@ sudo apt update && sudo apt install terraform
 
 #### Outputs
 - output exports values/created resources from a module/state so they can be read by `terraform output` command, other terraform modules via `module.<name>.<output>`, CI scripts as deployment metadata
+- they are currently not used and therefore not implemented, github variables are used instead to pass resource information to the CD pipeline
 
 #### IAM (Identity and Access management)
 - service account:
@@ -167,3 +168,19 @@ sudo apt update && sudo apt install terraform
     - `role = "roles/iam.workloadIdentityUser"`: ability to call generateAccessToken on the IAM Credentials API to **impersonate a service account**
     - `member = "principalSet://iam.googleapis.com/${pool.name}/attribute.repository/${var.github_repo}"`: 
         - principalSet: not a single identity but a set of identities defined by an attribute - any external identity that came through this pool AND whose `attribute.repository` matches your-org/your-repo
+
+## Terraform in CD pipeline
+
+### Artifact Registry
+- is a fully managed service used to centrally store and manage software build artifacts, such as container images, native language packages (e.g., Maven, npm, and Python)
+
+#### Syntax
+- `format = DOCKER"`: registry type, supports the OCI (open docker initiative) Distribution Specification, other possible values: MAVEN, NPM, PYTHON, GO
+- `cleanup_policies`: Without cleanup policies, every CI push accumulates images forever.
+    - KEEP rules take precedence over DELETE rules
+    - rules applied in this project:
+        - Keep tagged images (latest, git SHAs) for 90 days
+        - Delete untagged images after 7 days (leftover build layers from when a tag is moved, intermediate images from CI builds that failed before pushing a final tagged image)
+        - Always keep the 10 most recent tagged images regardless of age
+- evtl. TODO: `tag_prefixes = ["sha-"]` in `delete-old-tagged` and `tag_prefixes = ["v"]` in `keep-release-tags`: exclude release tags like v1.0.0 from deletion and to keep them indefinitely
+- 

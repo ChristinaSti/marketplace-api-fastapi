@@ -8,7 +8,7 @@ resource "google_storage_bucket" "tf_state" {
   versioning {
     enabled = true
   }
-  
+
   lifecycle_rule {
     condition {
       num_newer_versions = 5

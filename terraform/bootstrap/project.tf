@@ -5,7 +5,7 @@ resource "google_project" "this" {
   billing_account = var.billing_account
   labels          = var.labels
   # default VPC has overly permissive firewall rules => manage networking yourself!
-  auto_create_network = false 
+  auto_create_network = false
   # prevent_destroy in lifecycle is the terraform-side guard, deletion_policy adds a 
   # complementary GCP API-side guard
   deletion_policy = "PREVENT"
