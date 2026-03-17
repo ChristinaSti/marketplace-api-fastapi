@@ -39,7 +39,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.TERRAFORM_WD }}/.terraform/providers
-          key: tf-providers-${{ format('{0}/.terraform.lock.hcl', env.TERRAFORM_WD) }}  
+          key: tf-providers-${{ hashFiles(format('{0}/.terraform.lock.hcl', env.TERRAFORM_WD)) }}  
   
       - name: Terraform Init
         working-directory: ${{ env.TERRAFORM_WD }}
