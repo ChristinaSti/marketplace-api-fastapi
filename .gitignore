@@ -28,3 +28,5 @@ coverage.*
 *.tfvars
 *.tfvars.json
 !*tfvars.example
+!terraform/common.tfvars
+!terraform/pipeline/pipeline.tfvars

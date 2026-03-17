@@ -39,4 +39,16 @@ jobs: # contains one or more job definitions, each job is an isolated execution 
           # => tells the action which GCP endpoint to exchange the OIDC token with
           service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
           # The GCP service account email to impersonate. The WIF pool's IAM binding must grant roles/iam.workloadIdentityUser to the GitHub identity (matching on repo/branch claims) on this service account — otherwise the impersonation is rejected
+      
+      # ...
+
+      - name: Cache Terraform providers
+        uses: actions/cache@v5 #  store and retrieve files so they don't have to be re-downloaded every time the script runs
+        with:
+          path: terraform/.terraform/providers # tells the action exactly which folder to save (where Terraform stores the binary plugins for the cloud providers)
+          key: tf-providers-${{ hashFiles('terraform/.terraform.lock.hcl') }}
+          # - create a hash of `.terraform.lock.hcl` file (lists provider versions) -> changes when provider are updated => induces automatic download of new version
+      
+      # ...
+
 ```

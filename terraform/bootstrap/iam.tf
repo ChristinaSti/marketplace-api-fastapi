@@ -10,7 +10,7 @@ resource "google_service_account" "cd" {
 locals {
   cd_roles = [
     "roles/run.admin",
-    "roles/iam.serviceAccountUser", 
+    "roles/iam.serviceAccountUser",
     "roles/artifactregistry.writer",
     "roles/secretmanager.secretAccessor",
     "roles/cloudsql.client",

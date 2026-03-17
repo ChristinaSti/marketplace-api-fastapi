@@ -23,7 +23,6 @@ variable "billing_account" {
 variable "region" {
   description = "Default GCP region for regional resources."
   type        = string
-  default     = "europe-west3"
 }
 
 variable "labels" {
