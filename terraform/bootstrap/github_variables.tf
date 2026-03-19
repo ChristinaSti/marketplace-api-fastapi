@@ -27,6 +27,12 @@ resource "github_actions_variable" "gcp_region" {
   value         = var.region
 }
 
+resource "github_actions_variable" "gcp_service_name" {
+  repository    = local.github_repo
+  variable_name = "GCP_SERVICE_NAME"
+  value         = var.service_name
+}
+
 resource "github_actions_variable" "tf_state_bucket" {
   repository    = local.github_repo
   variable_name = "TF_STATE_BUCKET"
