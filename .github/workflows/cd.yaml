@@ -11,6 +11,7 @@ jobs:
     env:
       TERRAFORM_WD: terraform/pipeline
       SERVICE_NAME: "marketplace-api"
+      TF_VARS: "-var-file=../common.tfvars -var-file=pipeline.tfvars"
 
     permissions:
       contents: read
@@ -47,11 +48,11 @@ jobs:
 
       - name: Terraform Plan
         working-directory: ${{ env.TERRAFORM_WD }}
-        run: terraform plan -out=tfplan
+        run: terraform plan ${{ env.TF_VARS }} -out=tfplan
 
       - name: Terraform Apply
         working-directory: ${{ env.TERRAFORM_WD }}
-        run: terraform apply -var-file=../common.tfvars -var-file=pipeline.tfvars -auto-approve tfplan
+        run: terraform apply ${{ env.TF_VARS }} -auto-approve tfplan
       - name: Set image tag
         id: image
         run: |
