@@ -3,6 +3,16 @@ variable "project_id" {
   type        = string
 }
 
+variable "region" {
+  description = "Default GCP region for regional resources."
+  type        = string
+}
+
+variable "service_name" {
+  description = "Base name used for Cloud Run service, Artifact Registry repo, etc."
+  type        = string
+}
+
 variable "project_name" {
   description = "Human-readable project display name."
   type        = string
@@ -18,11 +28,6 @@ variable "billing_account" {
   description = "Billing Account ID to attach to the project."
   type        = string
   sensitive   = true
-}
-
-variable "region" {
-  description = "Default GCP region for regional resources."
-  type        = string
 }
 
 variable "labels" {
