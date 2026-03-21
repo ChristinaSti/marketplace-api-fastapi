@@ -11,7 +11,7 @@ locals {
   cd_roles = [
     "roles/run.admin",
     "roles/iam.serviceAccountUser",
-    "roles/artifactregistry.writer",
+    "roles/artifactregistry.admin",
     "roles/secretmanager.secretAccessor",
     "roles/cloudsql.client",
     "roles/storage.objectAdmin",
