@@ -55,7 +55,7 @@ jobs:
       - name: Set image tag
         id: image
         run: |
-          echo "base=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/marketplace/${{ vars.SERVICE_NAME }}" >> "$GITHUB_OUTPUT"
+          echo "base=${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/marketplace/${{ vars.GCP_SERVICE_NAME }}" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate Docker to Artifact Registry
         run: gcloud auth configure-docker ${{ vars.GCP_REGION }}-docker.pkg.dev --quiet
