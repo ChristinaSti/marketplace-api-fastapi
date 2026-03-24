@@ -167,7 +167,7 @@ sudo apt update && sudo apt install terraform
     - the github action then calls iamcredentials.googleapis.com to impersonate the specified service account, exchanging the federated token for a service-account-scoped token which can then be used by the CD pipeline to authenticate for subsequent gcloud/GCP SDK calls
     - `role = "roles/iam.workloadIdentityUser"`: ability to call generateAccessToken on the IAM Credentials API to **impersonate a service account**
     - `member = "principalSet://iam.googleapis.com/${pool.name}/attribute.repository/${var.github_repo}"`: 
-        - principalSet: not a single identity but a set of identities defined by an attribute - any external identity that came through this pool AND whose `attribute.repository` matches your-org/your-repo
+        - principalSet: not a single identity but a set of identities defined by an attribute - any external identity that came through this pool AND whose `attribute.repository` matches my-org/my-repo
 
 ## Terraform in CD pipeline
 
@@ -183,4 +183,155 @@ sudo apt update && sudo apt install terraform
         - Delete untagged images after 7 days (leftover build layers from when a tag is moved, intermediate images from CI builds that failed before pushing a final tagged image)
         - Always keep the 10 most recent tagged images regardless of age
 - evtl. TODO: `tag_prefixes = ["sha-"]` in `delete-old-tagged` and `tag_prefixes = ["v"]` in `keep-release-tags`: exclude release tags like v1.0.0 from deletion and to keep them indefinitely
-- 
+
+### Cloud Run
+- create a runtime service account to follow the principle of least privilege (not using the broad CD service account)
+- `"roles/secretmanager.secretAccessor"`: required for --set-secrets to inject database credentials
+- `"roles/cloudtrace.agent"`: allows Cloud Run to export traces for latency diagnostics
+- `"roles/logging.logWriter"`: allows to write logs automatically
+
+### Network
+
+#### Principles
+- using Virtual private Cloud (VPC)
+- **VPC**: is a logically isolated section of a cloud provider's network where I can run my own resources in a private, controlled environment, even though the underlying hardware is shared with other customers, while leveraging the **scalability of public cloud services**
+- IP address: a numerical label assigned to every device on a network used to identify and locate it
+- **Subnet**: inside my VPC, I split my address space into smaller subnets, e.g. one for web servers, one for databases
+    - a private subnet has no direct internet access, ab public subnet can communicate with the internet
+- **CIDR** (Classless Inter-Domain Routing): a compact way to express a range of IP addresses
+    - -> example: 10.0.0.0/16 means all addresses from 10.0.0.0 to 10.0.255.255 (256 x 256 = 65,536 addresses)
+        - -> IP-addresses are represented as 32 bits - 8 bits for each of the 4 groups
+            - 1111 1111 => 128 + 64 + 32 + 16 + 8 + 4 + 2 + 1 = 255
+        - => the /16 in the above CIDR example tells I how many bits are fixed/locked, they define the network
+            - => the larger the number after the slash, the smaller the network
+- **Internet Gateway**: a component attached to a VPC to allow resources inside it to send and receive traffic to/from the public internet
+- **Route Table**: 
+    - a set of rules that determine where network traffic is directed 
+    - each subnet has a route table
+    - example: traffic going to the internet -> use the internet gateway
+- **Security Group**: 
+    - a virtual **firewall applied to individual resources**
+    - it controls which inbound and outbound traffic is allowed based on rules I define
+    - e.g. allow HTTPS traffic on port 443 from anywhere
+- **Network ACL** (Access control List): 
+    - a **firewall applied at subnet level** (broader than security group)
+
+- **Why use VPC?**
+    - **Isolation**: resources are invisible to other cloud customers
+    - **Security**: control exactly what traffic can flow in and out
+    - **Custom Networking**: define own IP ranges, subnets, and routes
+    - **Hybrid connectivity**: connect the VPC to on-premises office network via VPN or a dedicated link
+
+- **VPC Peering**: a connection between two separate VPCs that allows the to traffic to each other privately without ever touching the public internet
+    - => the 2 VPCs act as one network from a routing perspective
+
+- **Private Services Access (PSA)**: 
+    - is a Google Cloud-specific feature
+    - solves the following problem:
+        - Google's manages services (e.g. Cloud SQL, Cloud Filestore, Memorystore) run inside Google's own VPC
+        - => the customer's VPCs are separate from Google's VPC => customer resources would have to reach Google's managed services over the public internet which is slower and less secure
+    - solution:
+        - PSA sets up a private VPC Peering connection between the customer's VPC and Google's internal service VPC
+        - => Google's managed service instance (e.g. Cloud SQL instance) gets an IP from the reserved range (dedicated exclusively for Google to use) of the customer VPC => communication works as if they were in the same VPC
+
+- **Serverless Compute**: services like Cloud Run, Cloud Functions, or App Engine where I deploy code without managing any servers yourself
+    - => Google runs them in its own infrastructure outside my VPC
+    - => Problems:
+        - it can reach neither the private subnets in my VPC nor the PSA-connected services => would have to go over the public internet
+
+- **Serverless VPC Access Connector**: 
+    - is a small, Google-managed bridge component that I deploy inside my VPC
+    - it gets IP addresses from the CIDR range I specify
+    - **Serverless services** are then configured to route their outbound traffic through that VPC Access Connector bridge => that traffic enters my VPC privately
+
+#### Traffic flow overview of this project
+Internet
+    |
+Cloud Run (public endpoint, serverless service managed by GCP) 
+    |
+---(via VPC Access Connector)---
+    |
+   VPC 
+    |
+--(via PSA)--
+    |
+Cloud SQL (Google's manged service)
+
+#### Concrete Resources created via TF
+1. **The VPC Network**: `"google_compute_network" "main"`
+    - `auto_create_subnetworks`: if True, Google automatically creates one subnet per Google Cloud region, using predefined CIDR blocks from the 10.128.0.0/9 range
+        - almost always want `auto_create_subnetworks = False` especially to make sure there remains enough free range for custom defined components like  PSA, a Serverless VPC Access Connector, VPN connections to on-prem
+2. **Subnet for serverless VPC Access connector**: `"google_compute_subnetwork" "connector"`
+    - `ip_cidr_range = "10.8.0.0/24"`:
+        - available private IP ranges:
+            - The internet has reserved three ranges that are guaranteed never to be used on the public internet => can be freely used in private networks:
+                - 10.0.0.0/8        — ~16 million addresses
+                - 172.16.0.0/12     — ~1 million addresses
+                - 192.168.0.0/16    — ~65,000 addresses
+        - Cloud Run's VPC connector needs a /28 subnet (16 IPs) at minimum
+        - I allocate /24 (6 flexible bits = 256 IPs) to leave room for future services
+    - `private_ip_google_access = true`: leaving it false there would mean my private resources silently lose access to Google APIs
+3. **Serverless VPC Access Connector** `"google_vpc_access_connector" "main"`: 
+    - bridges serverless Cloud Run service into the VPC so it can reach Cloud SQL via private IP
+    - **Scaling** type:
+        1. instance scaling:
+            - example definition:
+                ```
+                min_instances = 2 # minimum required by GCP
+                max_instances = 3
+                ```
+            - indirect scaling, Google infers how much capacity/throughput I need within the range that the defined numbers of instances offer
+        2. Throughput scaling:
+            - example definition:
+                ```
+                min_throughput = 200   # Mbps — baseline, keeps at least this capacity ready
+                max_throughput = 1000  # Mbps — ceiling, Google won't exceed this
+                ```
+            - values must be multiples of 200 Mbps
+            - direct scaling, tell Google how many Mbps I need => Google decides internally how many instances of what size to provision to meet that target => tends to react more smoothly to traffic spikes because Google can make finer-grained decisions than I can by manually tuning instance counts => USUALLY PREFERRED
+            - make sure the limits are close to  multiple of the throughput of the machine_type, otherwise there will be idle capacity I need to pay for
+
+    - **`machine_type`** choices:
+        -  **`e2-micro`**
+            - throughput per instance: 100 Mbps
+            - are cheapest, suitable for low traffic
+            - shared core: get a fraction of a vCPU (e.g. 1 unit of time out of 4 units of time)
+            - => a process might be mid-task when the CPU is taken away, has to wait, then resumes => creates irregular, bursty pauses/latency spikes rather than a smoothly slower execution
+        - **`e2-standard-4`**: 
+            - throughput per instance: 500 Mbps
+            - get full 4 vCPUs
+            - Recommended for high throughput (~3200-16000 Mbps), production environments, or high concurrency. 
+4. **Private Services Access (PSA)** for Cloud SQL:
+    - `"google_compute_global_address" "private_services"`: 
+        - reserves an IP range in my VPC
+        - `prefix_length = 20`: /20 => 12 flexible bits = 4096 IPs for Cloud SQL + future services
+    - `"google_service_networking_connection" "private_services"`: 
+        - creates a VPC peering connection between my VPC and Google's service producer network (where Cloud SQL is)
+    - => Cloud SQL is only reachable from within the VPC, has no public IP, eliminates public attack surface
+5. **Firewall rules**
+    - Firewall rules in GCP are VPC-level resources (there are no Security Groups or Network ACLs)
+    - Cloud Run is a serverless, Google-managed service that sits outside my VPC (unlike Compute Engine VM instances and GKE nodes) => VPC firewall rules do not apply
+        - Access is controlled by two different mechanisms instead:
+            - IAM: roles/run.invoker on the service (allows/denies who can call it)
+            - Cloud Run ingress settings: set to all, internal, or internal-and-cloud-load-balancing
+    - `"google_compute_firewall" "deny_all_ingress"`
+        - `priority = 65534`
+            - not (possible to) use 65535, it is reserved by GCP for its own implicit deny-all ingress (but allow all egress)
+                - -> this rule is completely silent, it drops traffic with no logging
+                - => better use my own explicit deny rules to have audit trail
+            - any allow rule I add at a lower number will take precedence automatically
+        - `deny { protocol = "all" }`: blocks every protocol. This is a safer default: I must explicitly allow what I need rather than accidentally leaving a protocol open 
+        - `source_ranges = ["0.0.0.0/0"]`: matches all possible source IPs
+        - `log_config { metadata = "INCLUDE_ALL_METADATA" }`:
+            - all metadata: source/destination IP, port, instance details
+            - this matters for: security auditing (see what was blocked from where), debugging (check if a firewall rule is the cause if something does not work), compliance (some standards require evidence of network lever logging)
+            - trade-off: Cloud logging volume associated cost => evtl. only enable it on deny rules, not on every rule
+        - `google_compute_firewall` vs. `google_compute_network_firewall_policy`:
+            a) `google_compute_firewall`:
+                - Scope: Single VPC network
+                - Evaluation: Flat rule list with priority
+                - Use cases: single project or simple setup, teams manage their own VPC rules independently, no need for hierarchy or inheritance
+            b) `google_compute_network_firewall_policy`:
+                - Scope: Can be attached at Organization, Folder, VPC network
+                - Evaluation: Hierarchical (org -> folder -> network)
+                - Use cases: multiple projects / shared VPCs, need organization-wide enforcement, central security team managing rules, need for deny-by-default guardrails, compliance requirements (e.g., enforce no public SSH globally)
