@@ -10,7 +10,7 @@ resource "google_compute_subnetwork" "connector" {
   name                     = "${var.service_name}-connector-subnet"
   region                   = var.region
   network                  = google_compute_network.main.id
-  ip_cidr_range            = "10.0.0.0/24"
+  ip_cidr_range            = "10.0.0.0/28"
   private_ip_google_access = true
 }
 
