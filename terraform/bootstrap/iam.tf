@@ -15,6 +15,10 @@ locals {
     "roles/secretmanager.secretAccessor",
     "roles/cloudsql.client",
     "roles/storage.objectAdmin",
+    "roles/compute.networkAdmin",
+    "roles/vpcaccess.admin",
+    "roles/servicenetworking.networksAdmin",
+    "roles/compute.securityAdmin"
   ]
 }
 
