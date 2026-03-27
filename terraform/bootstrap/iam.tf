@@ -1,3 +1,8 @@
+# =============================================================================
+# CD service account with least-privilege IAM roles for the GitHub Actions
+# pipeline.
+# =============================================================================
+
 resource "google_service_account" "cd" {
   project      = google_project.this.project_id
   account_id   = "github-actions-cd"

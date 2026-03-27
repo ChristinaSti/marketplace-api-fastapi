@@ -1,11 +1,14 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
-
+from sqlalchemy import pool
+import logging
 from alembic import context
 from app import models  # noqa: F401
-from app.config import settings
-from app.database import Base
+from app.config import PasswordAuthSettings, settings
+from app.database import Base, create_engine
+from app.exception import UnsupportedAuthSettingsError
+
+logger = logging.getLogger(__name__)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -27,10 +30,11 @@ target_metadata = Base.metadata
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
-config.set_main_option(
-    "sqlalchemy.url",
-    settings.database_url
-)
+if isinstance(settings, PasswordAuthSettings):
+    config.set_main_option(
+        "sqlalchemy.url",
+        settings.database_url
+    )
 
 
 def run_migrations_offline() -> None:
@@ -64,12 +68,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
-
+    try:
+        connectable = create_engine(settings)
+    except UnsupportedAuthSettingsError:
+        logger.exception("Failed to initialize database engine")
+        raise
     with connectable.connect() as connection:
         context.configure(
             connection=connection, target_metadata=target_metadata

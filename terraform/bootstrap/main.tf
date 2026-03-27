@@ -1,29 +1,18 @@
 # =============================================================================
-# Bootstrap — run ONCE by a human with org-admin permissions
+# Bootstrap — run ONCE by a human with org-admin permissions.
 #
-# This config creates everything the CD pipeline needs to exist before it can
-# run, solving the chicken-and-egg problem:
-#   - GCP project (with billing)
-#   - Essential APIs
-#   - Terraform remote-state bucket
-#   - Workload Identity Federation (keyless GitHub Actions → GCP auth)
-#   - CD service account with least-privilege IAM roles
-#   - GitHub Actions secrets (WIF_PROVIDER, WIF_SERVICE_ACCOUNT)
+# Creates everything the CD pipeline needs before it can run (solves the chicken-
+# and-egg problem): GCP project, APIs, state bucket, Workload Identity
+# Federation, CD service account, and GitHub Actions variables.
 #
 # Usage:
 #   cd terraform/bootstrap
 #   terraform init
 #   terraform apply -var-file=../common.tfvars -var-file=bootstrap.tfvars
 #
-# State is kept LOCAL on purpose — this config is run once and rarely touched.
-# If you need to re-run it (e.g. to add an API), re-apply from your
-# machine. The local state file (terraform.tfstate) should NOT be committed —
-# it is already in .gitignore.
-#
 # Prerequisites on YOUR machine:
-#   - Google account with:
-#     - roles/resourcemanager.projectCreator  (on the org)
-#     - roles/billing.user                    (on the billing account)
+#   - roles/resourcemanager.projectCreator  (on the org)
+#   - roles/billing.user                    (on the billing account)
 # =============================================================================
 
 terraform {
@@ -72,7 +61,7 @@ locals {
     "sqladmin.googleapis.com",
     "servicenetworking.googleapis.com",
     "vpcaccess.googleapis.com",
-    "containerscanning.googleapis.com"
+    "containerscanning.googleapis.com",
   ]
 }
 

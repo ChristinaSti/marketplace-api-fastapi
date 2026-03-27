@@ -14,6 +14,8 @@ uv python pin 3.14
 uv add fastapi uvicorn 
 # add dependencies for development only
 uv add pytest ruff --dev
+# if you added dependency to pyproject.toml by hand, install dependencies using:
+uv sync
 # start the app:
 uv run uvicorn app.main:app --reload
 ```
@@ -25,10 +27,10 @@ uv run ruff check . (--fix)
 ```
 
 # what to add to .gitignore and what not:
-- ADD:
+- DON'T ADD:
     - .venv: the virtual environment
         - why: it is large, platform-specific and fully reproducible from the lockfile via uv sync
-- DON'T ADD:
+- ADD:
     - `.python-version`: pins the Python version for everyone working on the project across environments
     - `uv.lock`: records the exact **resolved** versions of every dependency (including transitive ones) across all platforms
         - => Reproducible, deterministic installs for everyone

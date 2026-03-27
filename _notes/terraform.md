@@ -147,6 +147,10 @@ sudo apt update && sudo apt install terraform
 "roles/secretmanager.secretAccessor", # read database secrets
 "roles/cloudsql.client",              # connect to Cloud SQL
 "roles/storage.objectAdmin",          # read/write Terraform state
+"roles/compute.networkAdmin",         # for resources: google_compute_network, google_compute_subnetwork, google_compute_global_address
+"roles/vpcaccess.admin",              # for resource: google_vpc_access_connector
+"roles/servicenetworking.networksAdmin", # for resource: google_service_networking_connection
+"roles/compute.securityAdmin"         # for resource: google_compute_firewall
 ```
 
 #### WIF (workload identity federation)
@@ -262,14 +266,15 @@ Cloud SQL (Google's manged service)
     - `auto_create_subnetworks`: if True, Google automatically creates one subnet per Google Cloud region, using predefined CIDR blocks from the 10.128.0.0/9 range
         - almost always want `auto_create_subnetworks = False` especially to make sure there remains enough free range for custom defined components like  PSA, a Serverless VPC Access Connector, VPN connections to on-prem
 2. **Subnet for serverless VPC Access connector**: `"google_compute_subnetwork" "connector"`
-    - `ip_cidr_range = "10.8.0.0/24"`:
+    - `ip_cidr_range = "10.0.0.0/28"`:
         - available private IP ranges:
             - The internet has reserved three ranges that are guaranteed never to be used on the public internet => can be freely used in private networks:
                 - 10.0.0.0/8        — ~16 million addresses
                 - 172.16.0.0/12     — ~1 million addresses
                 - 192.168.0.0/16    — ~65,000 addresses
         - Cloud Run's VPC connector needs a /28 subnet (16 IPs) at minimum
-        - I allocate /24 (6 flexible bits = 256 IPs) to leave room for future services
+        - I allocate /28 (4 flexible bits = 16 IPs) because it is a strict requirement for subnets to have an IP range of exactly /28
+            - -> connector's subnet cannot be shared with any other resources => no need to and impossible to consider resouces to addin the future in the allocated IP range
     - `private_ip_google_access = true`: leaving it false there would mean my private resources silently lose access to Google APIs
 3. **Serverless VPC Access Connector** `"google_vpc_access_connector" "main"`: 
     - bridges serverless Cloud Run service into the VPC so it can reach Cloud SQL via private IP
@@ -335,3 +340,228 @@ Cloud SQL (Google's manged service)
                 - Scope: Can be attached at Organization, Folder, VPC network
                 - Evaluation: Hierarchical (org -> folder -> network)
                 - Use cases: multiple projects / shared VPCs, need organization-wide enforcement, central security team managing rules, need for deny-by-default guardrails, compliance requirements (e.g., enforce no public SSH globally)
+
+#### CD: Deployments
+- both deployments - the migration job and the deployment of the service to Cloud Run - require a connection to Cloud SQL database
+- one option to authenticate to the database is by getting a required password from the secret manager.
+    - -> however password based authentication is not considered best practice because there is a leaking risk holding the password in the runtime container env vars and password rotation is necessary
+    - => Use IAM Database Authentication instead
+- IAM Database Authentication:
+    - authenticate to DB with service account IAM identity instead of a long-lived password. The runtime SA gets a short-lived OAuth2 token via the Cloud SQL Python Connector
+    - runtime containers hold no secret
+- **Service Accounts**:
+    - it is recommended to use separate service accounts for runtime and migration (Least-privilege principle: each workload gets only the permissions it needs)
+    1. **Runtime Service account:** serves HTTP traffic; needs DML (Data Manipulation Language, deals with the data inside the database) access (SELECT/INSERT/UPDATE/DELETE) but NOT DDL (Data Definition Language, deals with the structure of the database) (CREATE TABLE, ALTER TABLE, etc.).
+    2. **Migration service account:** runs Alembic migrations and GRANTs; needs DDL access and the ability to GRANT DML privileges to the runtime user.  Only runs during CD deployments (brief window, minimal attack surface).
+    - clear distinction of migration vs runtime in Cloud Audit Logs is possible
+    - Trade-off: since the migration SA owns the tables, it need to GRANT access to the runtime SA 
+        - -> An Alembic migration can be used to once set (no per migration grant step needed): Grants the runtime service account DML-only access to all existing tables and sequences, then configures ALTER DEFAULT PRIVILEGES so every future table/sequence created by the migration service account automatically inherits the same grants.
+            - `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{runtime_user}"`
+                - the public schema acts as the default namespace where PostgreSQL stores all objects (tables, sequences, views) unless I explicitly specify a different schema
+            - `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{runtime_user}"`
+                - A sequence is a unique value generator, typically used to automatically populate Primary Key columns
+                - depending on the PostgreSQL version and Cloud SQL configuration, permissions may be handled internally and explicit grants on sequences may not be required, but this grant should be added to cover all cases
+            - `user.replace('"', '""')`: SQL standard rule: to include a double quote character inside a double-quoted identifier, you must write it twice
+            - The runtime IAM user is read from the DATABASE_IAM_RUNTIME_USER env var set by the CD pipeline from the Terraform output ``db_iam_runtime_user``
+    - Roles
+        ``` yaml
+        # ── Cloud SQL IAM database authentication ────────────────────
+        "roles/cloudsql.instanceUser", # login to Cloud SQL via IAM database auth
+        "roles/cloudsql.client",       # connect via Cloud SQL Python Connector
+
+        # ── Observability ────────────────────────────────────────────────
+        "roles/cloudtrace.agent", # for using Cloud Trace to track how requests move through the system (how long it took, where bottlenecks are)
+        "roles/logging.logWriter",
+        ```
+#### Cloud SQL
+- Supported instance settings: https://docs.cloud.google.com/sql/docs/postgres/instance-settings 
+##### region and zone availability
+- For better performance, keep your data close to the services that need it. 
+- Region is permanent, while zone can be changed any time. 
+- zone availability
+    - **single zone**: `ZONAL`, in case of outage, no failover => not recommended for production.
+    - **multiple zones**: `REGIONAL` => high availability
+        - automatic failover to another zone within the selected region
+        -  99.99% availability SLA (service level agreement)/guaranteed uptime =~4.4 minutes/month allowed downtime
+        - cost ~ 2x the ZONAL price
+##### Machine Configuration
+Monitor utilization of the following resources to determine if more is needed:
+- CPU (determines query processing speed): If consistently >70% → scale up
+- Memory (determines data access speed): If near limit → increase RAM
+- Disk I/O (read/write from/to disk): High I/O → increase RAM/Cache (more place for working set data in fast access memory instead of slow access disk) or optimize queries (when queries scan too much data, missing indexes)
+
+Factors influencing resource needs:
+- simple queries (SELECT/INSERT) vs complex queries (joins, aggregations)
+- amount of data scanned per query
+- concurrency: number of simultaneous queries
+
+=> for an initial small app in production , I would start with 2-4 vCPUs, 8-16 GB Memory, e.g. `db-custom-4-16384` 
+
+
+##### Storage
+###### Storage Type (SSD vs HDD)
+- Properties affected by the storage type choice:
+    - **IOPS**: The number of read or write operations the disk can handle per second
+    - **Disk Throughput**: The amount of data (in MBs) processed per second by the database for read / write operations
+- HDD half the price of SSD
+- SSD: Lower latency than HDD with higher QPS and data throughput (PREFERRED)
+- Example for 100 GB:
+    - SSD: IOPS(Read/Write): 9000/9000, Disk Throughput(Read/Write): 240/240
+    - HDD: IOPS(Read/Write): 75/150,    Disk Throughput(Read/Write): 12/12
+
+###### Storage capacity
+- factor in current dataset size + backups + future growth
+- Higher capacity improves performance, up to the limits set by the machine type
+- Capacity can't be decreased later (increased yes)
+
+
+##### Security
+###### SSL/TLS mode
+- How does TLS (Transport Layer Security) work?
+    - TLS is a protocol that secures a network connection between two parties
+    - Features:
+        1. **Encryption**: data is encrypted in transit, so anyone intercepting the network traffic sees only gibberish.
+        2. **Server authentication**: the server presents a certificate (a signed document proving its identity), which the client verifies against a trusted CA (Certificate Authority — a third party both sides trust). This prevents connecting to an impostor server.
+    - Rough sketch of the handshake:
+        Client                        Server
+            |--- "I want to connect" --->|
+            |<-- "Here's my certificate"-|
+            |  (client verifies it)      |
+            |--- "OK, let's encrypt" --->|
+            |<======= encrypted data ====>|
+- Client: e.g. application, Server: database
+- available options for `ssl_mode =`
+    - `ALLOW_UNENCRYPTED_AND_ENCRYPTED`(not recommended) 
+    - `ENCRYPTED_ONLY`: Only allows connections using SSL/TLS encryption. Client certificates will not be verified here in the **transport layer** (One-Way TLS).
+    - `TRUSTED_CLIENT_CERTIFICATE_REQUIRED`: Only allows connections from clients that use a valid client certificate and SSL encryption (Mutual TLS / mTLS). IAM based authentication requires Cloud SQL connectors (Auth proxy or language libraries) for certificate verification enforcement.
+        - currently don't need it because, because it is redundant with my current architecture (private IP only + IAM auth + VPC connector), identity is verified at the **application layer** via IAM tokens, it already means no untrusted network path exists to the database
+
+###### Server certificate authority mode: 
+Choose the type of certificate authority that signs the server certificate for this Cloud SQL instance.
+- available options:
+    - `GOOGLE_MANAGED_INTERNAL_CA`: internal per-instance certificate authority, is the default
+    - `GOOGLE_MANAGED_CAS_CA`: A root certificate authority and subordinate certificate authorities stored in Certificate Authority Service (CAS) are the trust anchors for all instances in a region. 
+    - `CUSTOMER_MANAGED_CAS_CA`
+
+##### Data Protection
+- `prevent_destroy`: GCP API level, catches accidental terraform destroy commands.
+- `deletion_protection`: Terraform level, catches everything else (someone clicking "Delete" in Console, a rogue API call, etc.).
+
+=> They form two independent safety nets, removing the instance requires deliberately disabling both
+###### Backup tier
+point-in-time recovery (PITR):
+- lets you restore data to the exact state it was in at any specific moment in the past — not just the last full backup, where hours of data could get lost
+- full backup is taken as a baseline, transaction logs (or write-ahead logs) are continuously recorded, capturing every change made to the database => to recover, the system replays a full backup and then the transaction logs up to the desired timestamp
+
+######  Instance deletion protection 
+- **Prevent instance deletion**: Prevent accidental or unauthorized deletion of this instance. Disable this setting before attempting to delete
+-**Retain backups after instance deletion**:  Automated backups are retained based on your settings, while on-demand backups are kept until manually deleted. Storage is billed based on usage. 
+- **Final backup on instance deletion**:Final backups will be automatically created during the deletion of the instance. Final backup is stored for 30 days after deletion by default. 
+
+###### Maintenance 
+-  Maintenance typically only takes place once every few months, and requires your instance to be restarted while updates are made, which disrupts service briefly. 
+- **Timing**: 
+    - Choose the week to apply maintenance when a new version is available. 
+    - Earlier timing is useful for test instances, allowing you to see the effects of an update before it reaches your production instances.
+    - it is possible to set update deny periods
+- `update_track = "stable"`: get updates after they've been validated on the canary and preview tracks — typically a few weeks after initial rollout => no need for additional `maintenance_deny_period`
+
+###### Flags and Parameters
+Each flag serves an observability/debugging purpose:
+- `log_checkpoints = on`: Logs when PostgreSQL writes dirty buffers to disk. Helps diagnose I/O spikes, checkpoint storms, and tune checkpoint_timeout/max_wal_size.
+- `log_connections = on`: Logs every new client connection (user, database, source IP). Essential for auditing who connects and detecting connection storms or leaks.
+- `log_disconnections = on`: Logs when a client disconnects (includes session duration). Together with log_connections, shows connection lifetime — reveals connection pool misconfig or short-lived connection churn.
+- `log_lock_waits = on`: Logs when a session waits longer than deadlock_timeout (1s default) to acquire a lock. Critical for diagnosing slow queries caused by lock contention (waiting for another process that blocks the resource) rather than query complexity.
+- `log_temp_files = 0`: Logs every temp file creation (threshold of 0 bytes). Temp files mean a query's sort/hash exceeded work_mem and spilled to disk — a major performance red flag. Helps identify queries that need indexing or work_mem tuning.
+
+###### Query insights
+Query insights helps you detect and diagnose performance issues in your instance by examining queries using both historical and near real-time data. Enable it to understand database load, identify slow-running queries, and gain visibility into apps that connect to this instance. 7-days telemetry at no additional cost.
+- `query_plans_per_minute  = 5`: maximum sampling rate oer minute
+    - -> tracks all queries, but limits how many get their full execution plan saved (small overhead).
+    - maybe set to 10–20 in production => more likely to capture plans for infrequent but slow queries
+- record_application_tags = true #  Learn which tagged applications are making requests, and group that data to run metrics against it 
+- record_client_address   = false # Learn where your queries are coming from, and group that data to run metrics against it 
+- `query_string_length = 1024`: controls how much of each query string Query Insights stores/displays
+    - Simple CRUD queries are typically 100–300 characters.
+    - Complex queries with multiple JOINs, subqueries, or long column lists can be 500–2000+ characters.
+    - ORM-generated queries (SQLAlchemy) tend to be verbose because they fully qualify column names.
+    - => better set to 2048 for production
+-  "Active query analysis" and "Enable index advisor" are not available as Terraform but they're automatically available when query_insights_enabled = true, to be used in the Console UI.
+    - Active query analysis: Shows currently executing queries and their state. No config needed — it's available in the Console once Query Insights is on.
+    - Index advisor: Provides index recommendations based on query patterns. This is a Console-side feature that analyzes your query logs. It's available on instances with Query Insights enabled, particularly on PostgreSQL 12+.
+
+- Cloud SQL must wait for PSA peering to be established before it can receive a private IP from the peered range.
+    ``` yaml
+    depends_on = [
+        google_service_networking_connection.private_services,
+    ]
+    ```
+# `google_sql_user`:
+- `type     = "CLOUD_IAM_SERVICE_ACCOUNT"`: 
+    - specifies authentication methods
+    - use case: a service needs to access the DB, e.g. an app on CloudRun
+- Other options:
+
+    | User Type | Identity Type | Password Required? | Best Use Case | Terraform Name Format |
+    |---|---|---|---|---|
+    | BUILT_IN | Standard DB User | Yes | Legacy apps or simple shared credentials. | Custom (e.g., app_user) |
+    | CLOUD_IAM_USER | Individual Human | No (Uses IAM) | A specific developer needs admin or query access. | Full email (e.g., user@domain.com) |
+    | CLOUD_IAM_SERVICE_ACCOUNT | Machine / App | No (Uses IAM) | A single app (Cloud Run/GKE) connecting securely. | SA Email (engine specifics apply[](https://registry.terraform.io/providers/hashicorp/google/latest/docs/resources/sql_user.html)) |
+    | CLOUD_IAM_GROUP | Group of Identities | No (Uses IAM) | Granting access to a whole team (e.g., "Analyst Team"). | Group email (e.g., team@domain.com) |
+    | CLOUD_IAM_GROUP_USER | User via Group | No (Uses IAM) | Auditing which specific person from a group logged in. | Full email of the individual |
+    | CLOUD_IAM_GROUP_SERVICE_ACCOUNT | SA via Group | No (Uses IAM) | Tracking which specific app instance from a group logged in. | Full email of the service account |
+
+
+
+- what settings do NOT belong into tfvars? 
+    - hard-code in terraform, when the value is an architectural decision
+    - DO put in tfvars when there can be differences depending on environment
+
+#### Cloud Run
+##### Create service
+- **Authentication**
+    - `--allow-unauthenticated`: allow public access
+        - **IAM authentication** here would mean that every HTTP caller must present a valid Google IAM token => blocks public access
+            - if I want end-user authentication of a public API, I should have my application handle it (JWT, sessions for maintaining logged-in state between requests etc.)
+        - **Identity-Aware Proxy (IAP):**
+            - IAP is for internal/corporate apps where I want Google-managed login (e.g. admin dashboards restricted to the org).
+            - > **proxy server** is an intermediary server that sits between a client (e.g. an application) and a destination server (e.g. a backend API). When the client sends a request, the proxy server receives it first. It can the forward the request to the destination server, modify it, block it or return a response directly
+
+- **Billing**
+    - Background:
+        - **Request-based** billing charges per request, for instance startup, when instances are processing requests, and instance shutdown. CPU is limited outside of requests.
+        - **Instance-based** billing charges for the entire lifetime of container instances. Full CPU for the entire lifetime of each instance.
+        - The selected billing option does not affect Cloud Run's scaling. In any case, Cloud Run scales to zero if min instances are set to 0 and there no traffic is received.
+        - The selected billing option affects how the CPU is allocated to container instances
+    - Choice of setting for this project:
+        - with variable traffic, request-based billing can be better to save costs when traffic if low (but I don't scale to 0 which would be free of cost) => ` --billing=request`
+            - -> not explicitly necessary with `--execution-environment=gen2` because it defaults to it
+
+- **Service Scaling** (auto scaling vs. manual scaling)
+    - to reduce cold starts /initialization delays, set minimum number of instances to at least 1 (rather than 0)
+- **Revision Scaling**:
+    - controls scaling for a specific revision => for a standard single-active-revision deployment, service-level scaling is all I need.
+    - useful only when I am splitting traffic across multiple revisions (canary/blue-green).
+    - > blue-green deployment:
+        - Blue and Green stand for two identical production environments that alternate roles (unlike in the standard staging/production setup, where staging environment is often lower-scaled): one environment (e.g. Blue) handles live traffic while the new software version is deployed and tested in the other, idle environment (Green)
+        - Once verified, the load balancer switches all traffic to Green.
+    - > canary deployment:
+        - a new software version is initially released to a very small subset of users
+        - if the "canaries" (early users) don't experience issues, the update is gradually rolled out to a bigger subset of users
+- **Ingress**: Restricts network access to your Cloud Run service
+    - `--ingress=all`: required for users to reach my service from the internet
+    - other options:
+        - internal: Only accept traffic from within the VPC / Google network.
+        - internal-and-cloud-load-balancing:  Internal + through a Cloud Load Balancer.
+- **Health Checks**:  Use health checks with your Cloud Run resources which will allow you to determine when your app is ready to serve traffic and whether the app is in a healthy state.
+    - Startup probe: GET /health every 5s, 3 failures before marking unhealthy. Prevents routing traffic to instances that haven't finished starting.
+    - Liveness probe: GET /health every 30s. Restarts instances that stop responding.
+
+- **Requests**:
+    - `--concurrency=80` — max concurrent requests per instance (Cloud Run default, now explicit).
+        - this usually totally fine even for only 1 CPU core depending on the workload type, i.e. when the app is I/O bound,  it spends most of its time waiting e.g. for database queries, external HTTP calls, file reads, etc. and CPU is idle
+    - `--timeout=60s` — max request duration before Cloud Run kills it, GCP default seems to be 300s, in API calls, anything running 60+ seconds in a synchronous request is likely stuck except if I have endpoints that do heavy processing (e.g., report generation), then set it higher
+
+- **Execution Environment**:
+    - `--execution-environment=gen2` defaults to request-based billing, but you can make it explicit
+    - Why gen2 over gen1: Gen2 runs on full Linux (microVM instead of gVisor sandbox), which means: full syscall compatibility (no surprises with native libraries), better networking performance, and support for startup/liveness probes. Gen1 is the older gVisor-based sandbox — lighter but more restricted.

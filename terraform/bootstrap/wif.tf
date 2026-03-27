@@ -1,3 +1,11 @@
+# =============================================================================
+# Workload Identity Federation — keyless GitHub Actions authentication to GCP.
+#
+# The attribute_condition restricts token exchange to pushes to main in the
+# configured repo, preventing other repos or branches from impersonating the
+# CD service account.
+# =============================================================================
+
 resource "google_iam_workload_identity_pool" "github" {
   project                   = google_project.this.project_id
   workload_identity_pool_id = "github-pool"
