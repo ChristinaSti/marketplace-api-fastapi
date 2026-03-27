@@ -1,3 +1,8 @@
+# =============================================================================
+# Terraform remote state bucket to make `terraform.tfstate` of the terraform 
+# pipeline root accessible to the CD pipeline and to preserve state across 
+# different machines/users.
+# =============================================================================
 resource "google_storage_bucket" "tf_state" {
   project  = google_project.this.project_id
   name     = "${var.project_id}-tf-state"

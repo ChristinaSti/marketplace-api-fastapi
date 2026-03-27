@@ -7,7 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
-    # from .user import User
+    from .user import User
     from .role import Role
 
 
@@ -25,5 +25,5 @@ class UserRole(Base):
         index=True,
     )
 
-    # user: Mapped["User"] = relationship(back_populates="user_roles")
+    user: Mapped["User"] = relationship(back_populates="user_roles")
     role: Mapped["Role"] = relationship(back_populates="user_roles")

@@ -1,3 +1,8 @@
+# =============================================================================
+# Artifact Registry Docker repository with cleanup policies to prevent
+# unbounded storage growth.
+# =============================================================================
+
 locals {
   days_90 = "${90 * 24 * 60 * 60}s"
   days_7  = "${7  * 24 * 60 * 60}s"

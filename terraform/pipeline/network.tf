@@ -1,3 +1,10 @@
+# =============================================================================
+# Private VPC network for Cloud Run and Cloud SQL.
+# Cloud Run connects via a Serverless VPC Access connector;
+# Cloud SQL connects via Private Service Access (VPC peering).
+# All inbound traffic is denied explicitly to maintain an audit trail.
+# =============================================================================
+
 resource "google_compute_network" "main" {
   project                 = var.project_id
   name                    = "${var.service_name}-vpc"
@@ -44,6 +51,8 @@ resource "google_service_networking_connection" "private_services" {
   reserved_peering_ranges = [google_compute_global_address.private_services.name]
 }
 
+# explicit deny-all ingress adds logging to the same but silent rule by GCP on 
+# priority 65535
 resource "google_compute_firewall" "deny_all_ingress" {
   project   = var.project_id
   name      = "${var.service_name}-deny-all-ingress"

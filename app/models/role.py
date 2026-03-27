@@ -22,8 +22,8 @@ class Role(Base):
 
     id: Mapped[int] = mapped_column(
         SmallInteger,
-        Identity(always=True),  # auto-incrementing, always=True prevents manual inserts
-        nullable=False,  # also implied by primary_key=True
+        Identity(always=True),
+        nullable=False,
         primary_key=True,
         doc="Auto-incrementing role identifier",
     )

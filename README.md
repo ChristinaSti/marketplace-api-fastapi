@@ -23,8 +23,9 @@ purpose of `_notes`: "document" decisions, collect some new ad old knowledge
     - Container image storage: **GCP Artifact Registry**
     - Service deployment: **Cloud Run (serverless)**
     - Database: **Cloud SQL**
+        - passwordless IAM Authentication to DB via separate Service Accounts for migration (DDL privileges) and runtime (DML privileges)
     - **Networking**: 
         - Private network: **Virtual private cloud (VPC)**
         - access to Google's managed services (here Cloud SQL) run in Google's own VPC: **VPC Peering** via **Private Services Access (PSA)**
         - access to serverless services (here Cloud Run): **VPC Access Connector**
-        - **Firewall**: explicit deny all Ingress for logging attempts
+        - **Firewall**: explicitly deny all Ingress for logging access attempts

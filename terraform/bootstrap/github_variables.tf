@@ -1,3 +1,8 @@
+# =============================================================================
+# Publish infrastructure outputs as GitHub Actions variables so the CD
+# pipeline can reference them without hardcoding project-specific values.
+# =============================================================================
+
 locals {
   github_owner = split("/", var.github_repo)[0]
   github_repo  = split("/", var.github_repo)[1]
