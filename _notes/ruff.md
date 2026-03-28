@@ -31,3 +31,25 @@
     - using "ALL" is discouraged, because many rules are highly opinionated, experimental, or conflict with each other and because of implicit rule updates with ruff updates
     - further on, add more rules and add something like `ignore = ["E501"]` for rules that produce too much noise or that I disagree with
 
+## Set up automatic lint fixing and formatting in VS Code
+- examples:
+    1. "line too long" fixed by `ruff format`
+    2. "trailing whitespaces" fixed by `ruff check --fix`
+    
+- automate the execution on saving by setting the following in VS Code `settings.json`:
+    ``` json
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "always"
+    }
+    ```
+- next, it will need to set ruff as a formatter but for not it seems to work fine without it. Just to take a note of potential next steps:
+    1. Install ruff extension
+    2. add to `settings.json`:
+        ``` json
+        "[python]": {
+            "editor.defaultFormatter": "astral-sh.ruff"
+        },
+        ```
+        or maybe `"charliermarsh.ruff"` instead of `"astral-sh.ruff"`
+

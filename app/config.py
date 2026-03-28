@@ -4,10 +4,12 @@ from functools import lru_cache
 from pydantic import PostgresDsn, SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class DatabaseSettings(BaseSettings):
     """Database settings shared by every authentication mode.
-    Values can be passed via the case-insensitive field names as constructor arguments, 
-    env variables, `.env` file values, field default values and are prioritized in this order.
+    Values can be passed via the case-insensitive field names as constructor arguments,
+    env variables, `.env` file values, field default values and are prioritized in this
+    order.
     """
 
     database_name: str
@@ -34,7 +36,6 @@ class PasswordAuthSettings(DatabaseSettings):
         """Generate database schema from dialect and driver."""
         return f"{self.database_dialect}+{self.database_driver}"
 
-
     @computed_field
     @property
     def database_url(self) -> str:
@@ -52,11 +53,13 @@ class PasswordAuthSettings(DatabaseSettings):
             path=self.database_name,
         ).unicode_string()
 
+
 class IAMAuthSettings(DatabaseSettings):
     """Cloud SQL IAM authentication settings for production."""
 
     instance_connection_name: str
     database_iam_user: str
+
 
 @lru_cache
 def get_settings() -> DatabaseSettings:
@@ -73,7 +76,11 @@ def get_settings() -> DatabaseSettings:
         The cache persists for the lifetime of the application. To reload
         settings during testing, use get_settings.cache_clear().
     """
-    use_iam = os.getenv("DATABASE_USE_IAM_AUTH", "false").lower() in ("true", "1", "yes")
+    use_iam = os.getenv("DATABASE_USE_IAM_AUTH", "false").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     if use_iam:
         return IAMAuthSettings()  # type: ignore[call-arg]
     return PasswordAuthSettings()  # type: ignore[call-arg]

@@ -1,7 +1,6 @@
+import logging
 from logging.config import fileConfig
 
-from sqlalchemy import pool
-import logging
 from alembic import context
 from app import models  # noqa: F401
 from app.config import PasswordAuthSettings, settings
