@@ -5,14 +5,16 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from sqlalchemy import MetaData, create_engine as sa_create_engine, inspect
-from sqlalchemy.orm import DeclarativeBase
 from exception import UnsupportedAuthSettingsError
-
+from google.cloud.sql.connector import Connector, IPTypes
+from sqlalchemy import MetaData, inspect
+from sqlalchemy import create_engine as sa_create_engine
+from sqlalchemy.orm import DeclarativeBase
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
-    from app.config import IAMAuthSettings, PasswordAuthSettings, DatabaseSettings
+
+    from app.config import DatabaseSettings, IAMAuthSettings, PasswordAuthSettings
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +55,17 @@ class Base(DeclarativeBase):
 
 
 def create_engine(settings: DatabaseSettings) -> Engine:
-    """Create a SQLAlchemy engine using the authentication mode implied by *settings*' type."""
+    """Create a SQLAlchemy engine using the authentication mode implied by *settings*'
+    type.
+    """
 
     if isinstance(settings, IAMAuthSettings):
         return _create_iam_engine(settings)
     if isinstance(settings, PasswordAuthSettings):
         return sa_create_engine(settings.database_url)
-    raise UnsupportedAuthSettingsError(f"Engine cannot be created for type: {type(settings).__name__}")
+    raise UnsupportedAuthSettingsError(
+        f"Engine cannot be created for type: {type(settings).__name__}"
+    )
 
 
 def _create_iam_engine(settings: IAMAuthSettings) -> Engine:
@@ -69,10 +75,9 @@ def _create_iam_engine(settings: IAMAuthSettings) -> Engine:
     - Fetching instance metadata via the Cloud SQL Admin API
     - Generating short-lived OAuth2 access tokens
     - Establishing a secure TLS connection to the private IP
-    
+
     The ``pg8000`` driver is required by the connector for PostgreSQL.
     """
-    from google.cloud.sql.connector import Connector, IPTypes
 
     logger.info(
         "Creating Cloud SQL engine with IAM auth — instance=%s, user=%s",
