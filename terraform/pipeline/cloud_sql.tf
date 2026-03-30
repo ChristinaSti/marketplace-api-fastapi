@@ -1,10 +1,10 @@
 # =============================================================================
 # Private, production-grade Cloud SQL PostgreSQL instance.
-# TLS-encrypted, IAM-based DB login, vno public IP, daily backups with PITR.
+# TLS-encrypted, IAM-based DB login, no public IP, daily backups with PITR.
 #
 # Two IAM database users created from service accounts:
 # one for migrations (DDL, owns all tables), one for runtime (default DML 
-# privileges grated once via an Alembic migration).
+# privileges granted once via an Alembic migration).
 # =============================================================================
 
 resource "google_sql_database_instance" "main" {
@@ -14,11 +14,11 @@ resource "google_sql_database_instance" "main" {
   database_version = var.postgres_version
 
   settings {
-    tier              = var.db_machine_type
-    availability_type = var.db_availability_type
-    disk_size         = var.db_disk_size_gb
-    disk_type         = "SSD"
-    disk_autoresize   = true
+    tier                  = var.db_machine_type
+    availability_type     = var.db_availability_type
+    disk_size             = var.db_disk_size_gb
+    disk_type             = "SSD"
+    disk_autoresize       = true
     disk_autoresize_limit = 50 # prevent runaway costs from bugs or attacks
 
     user_labels = var.labels
@@ -28,12 +28,11 @@ resource "google_sql_database_instance" "main" {
       private_network    = google_compute_network.main.id
       allocated_ip_range = google_compute_global_address.private_services.name
 
-      server_ca_mode     = "GOOGLE_MANAGED_INTERNAL_CA"
-      ssl_mode           = "ENCRYPTED_ONLY"
+      server_ca_mode = "GOOGLE_MANAGED_INTERNAL_CA"
+      ssl_mode       = "ENCRYPTED_ONLY"
     }
 
     backup_configuration {
-      backup_tier                    = "STANDARD"
       enabled                        = true
       point_in_time_recovery_enabled = true
       start_time                     = "03:00" # low-traffic window
