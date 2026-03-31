@@ -17,7 +17,7 @@ resource "google_sql_database_instance" "main" {
     tier                  = var.db_machine_type
     availability_type     = var.db_availability_type
     disk_size             = var.db_disk_size_gb
-    disk_type             = "SSD"
+    disk_type             = "PD_SSD"
     disk_autoresize       = true
     disk_autoresize_limit = 50 # prevent runaway costs from bugs or attacks
 

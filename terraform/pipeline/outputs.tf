@@ -2,7 +2,7 @@
 # Outputs consumed by the CD pipeline.
 # =============================================================================
 
-output "vpc_connector_name" { 
+output "vpc_connector_name" {
   description = "Fully-qualified name of the Serverless VPC Access connector."
   value       = google_vpc_access_connector.main.id
 }
