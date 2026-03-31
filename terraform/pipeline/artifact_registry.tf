@@ -5,7 +5,7 @@
 
 locals {
   days_90 = "${90 * 24 * 60 * 60}s"
-  days_7  = "${7  * 24 * 60 * 60}s"
+  days_7  = "${7 * 24 * 60 * 60}s"
 }
 
 resource "google_artifact_registry_repository" "api" {
@@ -18,7 +18,7 @@ resource "google_artifact_registry_repository" "api" {
   lifecycle {
     prevent_destroy = true
   }
-  
+
   cleanup_policies {
     id     = "delete-old-tagged"
     action = "DELETE"
@@ -36,7 +36,7 @@ resource "google_artifact_registry_repository" "api" {
       tag_state  = "UNTAGGED"
     }
   }
- 
+
   cleanup_policies {
     id     = "keep-recent"
     action = "KEEP"
