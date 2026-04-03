@@ -21,14 +21,14 @@ terraform {
   required_providers {
     google = {
       source  = "hashicorp/google"
-      version = "~> 7.18"
+      version = "~> 7.28"
     }
     github = {
       source  = "integrations/github"
       version = "~> 6.0"
     }
   }
-  
+
   # The backend code was added after the state was created in a first bootstrap terraform run
   # in order to centrally save the bootstrap state.
   # Since this block is executed during terraform init, it cannot access 
