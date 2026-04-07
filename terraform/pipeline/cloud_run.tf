@@ -6,7 +6,7 @@
 
 resource "google_service_account" "runtime" {
   project      = var.project_id
-  account_id   = "run"
+  account_id   = "db-run"
   display_name = "${var.service_name} Cloud Run Runtime"
   description  = "Runtime identity for the ${var.service_name} Cloud Run service. DML-only database access."
 }
@@ -30,7 +30,7 @@ resource "google_project_iam_member" "runtime" {
 
 resource "google_service_account" "migrate" {
   project      = var.project_id
-  account_id   = "migrate"
+  account_id   = "db-migrate"
   display_name = "${var.service_name} Cloud Run Migration"
   description  = "Migration identity for the ${var.service_name} Alembic job. DDL + GRANT access."
 }
