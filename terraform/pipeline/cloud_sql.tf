@@ -110,14 +110,14 @@ resource "google_sql_database" "app" {
 }
 
 resource "google_sql_user" "iam_migrate" {
-  name     = google_service_account.migrate.account_id
+  name     = trimsuffix(google_service_account.migrate.email, ".gserviceaccount.com")
   instance = google_sql_database_instance.main.name
   project  = var.project_id
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
 
 resource "google_sql_user" "iam_runtime" {
-  name     = google_service_account.runtime.account_id
+  name     = trimsuffix(google_service_account.runtime.email, ".gserviceaccount.com")
   instance = google_sql_database_instance.main.name
   project  = var.project_id
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
