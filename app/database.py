@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from exception import UnsupportedAuthSettingsError
+from app.exception import UnsupportedAuthSettingsError
 from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import MetaData, inspect
 from sqlalchemy import create_engine as sa_create_engine
