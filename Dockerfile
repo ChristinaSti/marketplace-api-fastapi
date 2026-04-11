@@ -28,7 +28,8 @@ ENV PATH="/code/.venv/bin:$PATH"
 
 COPY app/ app/
 # for running migrations in CI
-COPY alembic/ alembic.ini ./
+COPY alembic/ alembic/
+COPY alembic.ini ./
 
 USER app
 
