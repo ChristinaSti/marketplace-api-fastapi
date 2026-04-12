@@ -10,12 +10,12 @@ from sqlalchemy import MetaData, inspect
 from sqlalchemy import create_engine as sa_create_engine
 from sqlalchemy.orm import DeclarativeBase
 
+from app.config import DatabaseSettings, IAMAuthSettings, PasswordAuthSettings
 from app.exception import UnsupportedAuthSettingsError
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
 
-    from app.config import DatabaseSettings, IAMAuthSettings, PasswordAuthSettings
 
 logger = logging.getLogger(__name__)
 
