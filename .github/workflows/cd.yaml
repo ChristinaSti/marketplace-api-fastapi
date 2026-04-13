@@ -51,7 +51,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ${{ env.TERRAFORM_WD }}
-        run: terraform apply ${{ env.TF_VARS }} -auto-approve tfplan
+        run: terraform apply -auto-approve tfplan
         
       - name: Read Terraform outputs
         id: tf
@@ -71,6 +71,7 @@ jobs:
           echo "concurrency=$(terraform output -raw cloud_run_concurrency)" >> "$GITHUB_OUTPUT"
           echo "timeout=$(terraform output -raw cloud_run_timeout)" >> "$GITHUB_OUTPUT"
           echo "ingress=$(terraform output -raw cloud_run_ingress)" >> "$GITHUB_OUTPUT"
+          echo "bootstrap_secret=$(terraform output -raw db_bootstrap_secret)" >> "$GITHUB_OUTPUT"
 
       - name: Set image tag
         id: image
@@ -104,6 +105,7 @@ jobs:
             DATABASE_IAM_USER=${{ steps.tf.outputs.db_iam_migrate_user }},\
             DATABASE_NAME=${{ steps.tf.outputs.db_name }},\
             DATABASE_IAM_RUNTIME_USER=${{ steps.tf.outputs.db_iam_runtime_user }}" \
+            --set-secrets="BOOTSTRAP_DB_PASSWORD=${{ steps.tf.outputs.bootstrap_secret }}:latest" \
             --max-retries=1 \
             --project=${{ vars.GCP_PROJECT_ID }}
 
@@ -116,7 +118,7 @@ jobs:
 
       - name: Deploy to Cloud Run
         id: deploy
-        uses: google-github-actions/deploy-cloudrun@v2
+        uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ vars.GCP_SERVICE_NAME }}
           region: ${{ vars.GCP_REGION }}
@@ -134,17 +136,16 @@ jobs:
             --allow-unauthenticated
             --cpu-boost
             --execution-environment=gen2
-            --billing=request
             --startup-probe-path=/health
             --startup-probe-period=5
             --startup-probe-failure-threshold=3
             --liveness-probe-path=/health
             --liveness-probe-period=30
-            --set-env-vars="/
-            DATABASE_USE_IAM_AUTH=true,/
-            INSTANCE_CONNECTION_NAME=${{ steps.tf.outputs.sql_connection }},/
-            DATABASE_IAM_USER=${{ steps.tf.outputs.db_iam_runtime_user }},/
-            DATABASE_NAME=${{ steps.tf.outputs.db_name }}"
+          env_vars: |
+            DATABASE_USE_IAM_AUTH=true
+            INSTANCE_CONNECTION_NAME=${{ steps.tf.outputs.sql_connection }}
+            DATABASE_IAM_USER=${{ steps.tf.outputs.db_iam_runtime_user }}
+            DATABASE_NAME=${{ steps.tf.outputs.db_name }}
 
       - name: Output service URL
         run: echo "Deployed to ${{ steps.deploy.outputs.url }}"
