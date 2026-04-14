@@ -51,7 +51,7 @@ jobs:
 
       - name: Terraform Apply
         working-directory: ${{ env.TERRAFORM_WD }}
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply  ${{ env.TF_VARS }} -auto-approve tfplan
         
       - name: Read Terraform outputs
         id: tf
