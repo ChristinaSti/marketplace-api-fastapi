@@ -71,7 +71,6 @@ jobs:
           echo "concurrency=$(terraform output -raw cloud_run_concurrency)" >> "$GITHUB_OUTPUT"
           echo "timeout=$(terraform output -raw cloud_run_timeout)" >> "$GITHUB_OUTPUT"
           echo "ingress=$(terraform output -raw cloud_run_ingress)" >> "$GITHUB_OUTPUT"
-          echo "bootstrap_secret=$(terraform output -raw db_bootstrap_secret)" >> "$GITHUB_OUTPUT"
 
       - name: Set image tag
         id: image
@@ -105,7 +104,6 @@ jobs:
             DATABASE_IAM_USER=${{ steps.tf.outputs.db_iam_migrate_user }},\
             DATABASE_NAME=${{ steps.tf.outputs.db_name }},\
             DATABASE_IAM_RUNTIME_USER=${{ steps.tf.outputs.db_iam_runtime_user }}" \
-            --set-secrets="BOOTSTRAP_DB_PASSWORD=${{ steps.tf.outputs.bootstrap_secret }}:latest" \
             --max-retries=1 \
             --project=${{ vars.GCP_PROJECT_ID }}
 
