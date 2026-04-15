@@ -134,11 +134,8 @@ jobs:
             --allow-unauthenticated
             --cpu-boost
             --execution-environment=gen2
-            --startup-probe-path=/health
-            --startup-probe-period=5
-            --startup-probe-failure-threshold=3
-            --liveness-probe-path=/health
-            --liveness-probe-period=30
+            --startup-probe=httpGet.path=/health,periodSeconds=5,failureThreshold=3
+            --liveness-probe=httpGet.path=/health,periodSeconds=30
           env_vars: |
             DATABASE_USE_IAM_AUTH=true
             INSTANCE_CONNECTION_NAME=${{ steps.tf.outputs.sql_connection }}
